@@ -6,7 +6,10 @@
   "scripts": {
     "start": "node --env-file=.env server.js",
     "start:demo": "node server.js",
-    "test": "node --test"
+    "test": "node --test",
+    "check:kma": "node --env-file=.env scripts/check-kma.js"
   },
-  "engines": { "node": ">=20.6" }
+  "engines": {
+    "node": ">=20.6"
+  }
 }

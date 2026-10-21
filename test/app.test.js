@@ -358,3 +358,9 @@ test("AI 판결문: 검증을 통과하면 쓰고, 규칙 밖 숫자가 있으�
     assert.equal(none.verdictTextBy, "rule");
   } finally { global.fetch = realFetch; delete process.env.GEMINI_API_KEY; }
 });
+
+test("AI 프롬프트에 정중한 버전의 자연스러운 끝맺음 규칙이 있다", () => {
+  const p = ai.buildPrompt({ verdict: "미루기", score: 40, relation: "친구", whenLabel: "10월 21일 15시", place: "야외", category: "업무·야근", alt: "", reasons: [] });
+  assert.match(p, /어떨까 해요/);
+  assert.match(p, /미룰 수 있을까요/);
+});
