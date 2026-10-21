@@ -153,7 +153,7 @@ const items = [
 
 test("기상청 응답 요약: 약속 시각에 가장 가까운 값과 하루 최고·최저", () => {
   const s = weather.summarizeKma(items, "20261021", 15);
-  assert.deepEqual(s, { tmax: 31, tmin: 17, pop: 60, wind: 4.5 });
+  assert.deepEqual(s, { tmax: 31, tmin: 17, pop: 60, wind: 4.5, pty: null, pcp: null, sno: null });
   const s2 = weather.summarizeKma(items, "20261021", 13);
   assert.equal(s2.pop, 40); // 13시에는 14시 값이 가장 가깝다
   assert.equal(weather.summarizeKma(items, "20261030", 15), null);
@@ -294,4 +294,67 @@ test("AI 프롬프트에 호칭·말끝 혼용 금지 규칙이 있다", () => {
   const p = ai.buildPrompt({ verdict: "미루기", score: 40, relation: "친구", whenLabel: "10월 21일 15시", place: "야외", category: "업무·야근", alt: "", reasons: [] });
   assert.match(p, /호칭과 말끝을 한 문장 안에서 섞지 않는다/);
   assert.match(p, /정중한 버전은 '친구야'/);
+});
+
+test("위경도 → 격자 변환: 서울 시청은 (60,127)이고 모든 지역이 격자를 가진다", () => {
+  assert.deepEqual(weather.latLonToGrid(37.5665, 126.9780), { nx: 60, ny: 127 });
+  for (const [name, r] of Object.entries(weather.REGIONS)) {
+    assert.ok(Number.isInteger(r.nx) && Number.isInteger(r.ny), name);
+    assert.ok(r.nx > 0 && r.nx < 150 && r.ny > 0 && r.ny < 260, name);
+  }
+});
+
+test("화면의 지역 목록은 서버가 지원하는 지역과 같다", () => {
+  const html = require("node:fs").readFileSync(require("node:path").join(__dirname, "../public/index.html"), "utf8");
+  const m = html.match(/var REGIONS=\[(.*?)\]/);
+  const names = m[1].split(",").map((x) => x.replace(/"/g, "").trim());
+  assert.deepEqual(names.sort(), Object.keys(weather.REGIONS).sort());
+});
+
+test("에어코리아 등급: 강원영동·영서 같은 지역 이름도 찾는다", () => {
+  const g = "서울 : 좋음,영동 : 나쁨,영서 : 보통,경기남부 : 매우나쁨";
+  assert.equal(weather.parseGrade(g, "강릉"), "나쁨");
+  assert.equal(weather.parseGrade(g, "춘천"), "보통");
+  assert.equal(weather.parseGrade(g, "수원"), "매우나쁨");
+});
+
+test("강수량·적설·강수형태: 문자열 값을 읽고 점수에 반영한다", () => {
+  const mk = (cat, v) => ({ fcstDate: "20261021", fcstTime: "1500", category: cat, fcstValue: v });
+  const sum = (pcp, sno, pty) => weather.summarizeKma([mk("TMP", "10"), mk("POP", "80"), mk("WSD", "2"), mk("PCP", pcp), mk("SNO", sno), mk("PTY", pty)], "20261021", 15);
+  assert.equal(sum("강수없음", "적설없음", "0").pcp, 0);
+  assert.equal(sum("1mm 미만", "1.0cm 미만", "0").pcp, 0);
+  assert.equal(sum("5.0mm", "적설없음", "1").pcp, 5);
+  assert.equal(sum("30.0~50.0mm", "적설없음", "1").pcp, 30);
+  assert.equal(sum("50.0mm 이상", "적설없음", "1").pcp, 50);
+  assert.equal(sum("강수없음", "5.0cm 이상", "3").sno, 5);
+  assert.equal(sum("강수없음", "5.0cm 이상", "3").pty, 3);
+  const calm = { tmax: 20, tmin: 10, pop: 10, wind: 2, pmGrade: "좋음" };
+  assert.equal(rules.weatherScore({ ...calm, pcp: 32 }, true).score, 40);
+  assert.equal(rules.weatherScore({ ...calm, pcp: 16 }, true).score, 30);
+  assert.equal(rules.weatherScore({ ...calm, pcp: 4 }, true).score, 15);
+  assert.equal(rules.weatherScore({ ...calm, sno: 6, pty: 3 }, true).score, 50);
+  assert.equal(rules.weatherScore({ ...calm, pcp: null, sno: null, pty: null }, true).score, 0);
+});
+
+test("AI 판결문: 검증을 통과하면 쓰고, 규칙 밖 숫자가 있으면 규칙 문장으로 대신한다", async () => {
+  const realFetch = global.fetch;
+  const ctx = { verdict: "미루기", score: 40, relation: "친구", whenLabel: "10월 21일 15시", place: "야외", category: "업무·야근",
+    reasons: ["개인 사정이 주된 이유라 장소를 바꿔도 해결되지 않아 미루기로 봅니다"] };
+  const reply = (obj) => { global.fetch = async () => ({ ok: true, json: async () => ({ candidates: [{ content: { parts: [{ text: JSON.stringify(obj) }] } }] }) }); };
+  const msgs = { polite: "안녕하세요, 10월 21일 15시 약속을 미루고 싶습니다.", light: "미루자!", firm: "미뤄야 할 것 같아." };
+  process.env.GEMINI_API_KEY = "k";
+  try {
+    reply({ verdict_text: "조정 필요도가 40점이라 미루는 쪽이 좋아요.", messages: msgs });
+    const ok = await ai.writeWithAi(ctx);
+    assert.equal(ok.verdictTextBy, "ai");
+    assert.match(ok.verdictText, /40점/);
+    reply({ verdict_text: "조정 필요도가 77점이라 미루는 쪽이 좋아요.", messages: msgs });
+    const bad = await ai.writeWithAi(ctx);
+    assert.equal(bad.verdictTextBy, "rule");
+    assert.equal(bad.used, "ai"); // 메시지는 그대로 AI
+    assert.match(bad.verdictText, /40점/);
+    global.fetch = async () => ({ ok: false });
+    const none = await ai.writeWithAi(ctx);
+    assert.equal(none.verdictTextBy, "rule");
+  } finally { global.fetch = realFetch; delete process.env.GEMINI_API_KEY; }
 });

@@ -96,14 +96,14 @@ async function handler(req, res) {
     meta.source = "직접 입력(시험용)";
   } else if (key && process.env.USE_FIXTURES !== "1") {
     try {
-      // 기상청과 에어코리아를 동시에 부른다. 에어코리아는 응답이 느릴 때가 있어 15초까지 기다린다.
+      // 기상청과 에어코리아를 동시에 부른다. 에어코리아는 응답이 느릴 때가 있어 10초까지 기다린다.
       // 실패하면(시간 초과 포함) 같은 지역·날짜로 최근 6시간 안에 성공한 값을 대신 쓰고 화면에 알린다.
       const airTask = (async () => {
         const ck = `${region}|${dateStr}`;
         let last = null;
         for (let i = 0; i < 2; i++) {
           try {
-            const a = await fetchAir({ key, region, dateDash: dateStr, now, timeoutMs: 15000 });
+            const a = await fetchAir({ key, region, dateDash: dateStr, now, timeoutMs: 10000 });
             if (a.pmGrade) AIR_CACHE.set(ck, { air: a, at: Date.now() });
             return a;
           } catch (e) {
@@ -151,12 +151,14 @@ async function handler(req, res) {
     parts: result.parts,
     reasons: result.reasons,
     category,
+    verdictText: written.verdictText,
     messages: written.messages,
     weather,
     meta: {
       ...meta,
       classifiedBy,
       messagesBy: written.used,
+      verdictTextBy: written.verdictTextBy,
       model: written.model,
       region, whenLabel,
     },

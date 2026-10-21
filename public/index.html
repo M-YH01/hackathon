@@ -35,6 +35,7 @@ ul{margin:6px 0 0;padding-left:18px}
 details summary{cursor:pointer;color:var(--ac);font-size:13px}
 .row{display:flex;gap:8px;align-items:center;margin-top:10px}
 .row input[type=checkbox]{width:auto}
+.vtext{margin:8px 0 4px;font-weight:600;line-height:1.5}
 </style>
 </head>
 <body>
@@ -77,6 +78,7 @@ details summary{cursor:pointer;color:var(--ac);font-size:13px}
   <div class="verdict" id="v"></div>
   <div class="bar"><i id="barfill"></i></div>
   <div id="score" class="note"></div>
+  <p id="vtext" class="vtext"></p>
   <ul id="reasons"></ul>
   <div id="warns"></div>
   <p id="care" class="hide"></p>
@@ -92,7 +94,7 @@ details summary{cursor:pointer;color:var(--ac);font-size:13px}
 <script>
 (function(){
 var $=function(i){return document.getElementById(i)};
-var REGIONS=["서울","부산","대구","인천","광주","대전","울산","세종","제주"];
+var REGIONS=["서울","부산","대구","인천","광주","대전","울산","세종","수원","의정부","춘천","강릉","청주","천안","전주","목포","포항","창원","제주"];
 REGIONS.forEach(function(r){var o=document.createElement("option");o.textContent=r;$("region").appendChild(o)});
 for(var h=0;h<24;h++){var o=document.createElement("option");o.value=h;o.textContent=h+"시";if(h===15)o.selected=true;$("hour").appendChild(o)}
 var fmt=new Intl.DateTimeFormat("sv-SE",{timeZone:"Asia/Seoul"});
@@ -141,10 +143,12 @@ $("v").textContent=j.verdict;$("v").style.color=col;
 $("barfill").style.width=j.score+"%";$("barfill").style.background=col;
 var p=j.parts;
 $("score").textContent="조정 필요도 "+j.score+" / 100 (날씨·대기질 "+p.weather+" + 사정 "+p.reason+(p.importance?" "+p.importance+" 중요도":"")+")";
+$("vtext").textContent=j.verdictText||"";
 var b=$("badges");b.textContent="";
 b.appendChild(badge("데이터: "+j.meta.source));
 b.appendChild(badge(j.meta.region+" · "+j.meta.whenLabel));
 b.appendChild(badge("사정 분류: "+(j.meta.classifiedBy==="ai"?"AI":"규칙")));
+b.appendChild(badge("판결문: "+(j.meta.verdictTextBy==="ai"?"AI":"규칙 문장")));
 b.appendChild(badge("메시지: "+(j.meta.messagesBy==="ai"?"AI ("+j.meta.model+")":"규칙 문장")));
 var ul=$("reasons");ul.textContent="";
 j.reasons.forEach(function(t){var li=document.createElement("li");li.textContent=t;ul.appendChild(li)});
@@ -152,7 +156,7 @@ var w=$("warns");w.textContent="";
 var notes=(j.meta.notes||[]).slice();
 var wx=j.weather||{};
 function nv(v,u){return v===null||v===undefined?"값 없음":v+u}
-notes.unshift("적용한 예보: 최고 "+nv(wx.tmax,"℃")+" · 최저 "+nv(wx.tmin,"℃")+" · 강수확률 "+nv(wx.pop,"%")+" · 풍속 "+nv(wx.wind,"m/s")+" · 초미세먼지 "+(wx.pmGrade||"값 없음"));
+notes.unshift("적용한 예보: 최고 "+nv(wx.tmax,"℃")+" · 최저 "+nv(wx.tmin,"℃")+" · 강수확률 "+nv(wx.pop,"%")+(wx.pcp!=null?" · 강수량 "+wx.pcp+"mm":"")+(wx.sno?" · 적설 "+wx.sno+"cm":"")+" · 풍속 "+nv(wx.wind,"m/s")+" · 초미세먼지 "+(wx.pmGrade||"값 없음"));
 if(j.meta.source==="공공데이터"){notes.push("기준: "+j.meta.kma+(j.meta.air?" / "+j.meta.air:""))}
 notes.forEach(function(t){var d=document.createElement("div");d.className=j.meta.source==="공공데이터"?"note":"warn";d.textContent=t;w.appendChild(d)});
 var box=$("msgs");box.textContent="";
