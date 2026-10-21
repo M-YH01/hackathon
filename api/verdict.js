@@ -93,10 +93,18 @@ async function handler(req, res) {
     meta.source = "직접 입력(시험용)";
   } else if (key && process.env.USE_FIXTURES !== "1") {
     try {
+      // 기상청과 에어코리아를 동시에 부른다(함수 실행 시간 단축). 에어코리아는 한 번 더 시도한다.
+      const airTask = (async () => {
+        let last = null;
+        for (let i = 0; i < 2; i++) {
+          try { return await fetchAir({ key, region, dateDash: dateStr, now }); }
+          catch (e) { last = e; }
+        }
+        const reason = last && last.name === "AbortError" ? "응답 시간 초과" : (last && last.message) || "알 수 없는 오류";
+        return { pmGrade: null, note: `에어코리아 예보를 불러오지 못했습니다(${reason})` };
+      })();
       const k = await fetchKma({ key, region, dateYmd, hour, now });
-      let air = { pmGrade: null, note: null };
-      try { air = await fetchAir({ key, region, dateDash: dateStr, now }); }
-      catch (e) { air = { pmGrade: null, note: "에어코리아 예보를 불러오지 못했습니다" }; }
+      const air = await airTask;
       weather = { ...k.weather, pmGrade: air.pmGrade };
       meta.source = "공공데이터";
       meta.kma = `기상청 단기예보 base_date ${k.baseDate}, base_time ${k.baseTime}`;
