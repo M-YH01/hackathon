@@ -1,0 +1,6 @@
+{
+  "regions": ["icn1"],
+  "functions": {
+    "api/verdict.js": { "maxDuration": 30 }
+  }
+}
