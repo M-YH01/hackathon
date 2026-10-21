@@ -289,3 +289,9 @@ test("AI 프롬프트에는 분류 이름 문장이 사실로 들어가지 않�
   assert.doesNotMatch(p, /\[사실\] 판결 이유:.*분류했고/);
   assert.match(p, /존댓말/);
 });
+
+test("AI 프롬프트에 호칭·말끝 혼용 금지 규칙이 있다", () => {
+  const p = ai.buildPrompt({ verdict: "미루기", score: 40, relation: "친구", whenLabel: "10월 21일 15시", place: "야외", category: "업무·야근", alt: "", reasons: [] });
+  assert.match(p, /호칭과 말끝을 한 문장 안에서 섞지 않는다/);
+  assert.match(p, /정중한 버전은 '친구야'/);
+});
