@@ -31,6 +31,9 @@ function numOrNull(v) {
 }
 
 // 시험 데이터(키가 없을 때): 공공데이터가 아니라는 점을 화면에 표시한다.
+// 같은 서버 인스턴스가 살아 있는 동안만 유지되는 임시 저장(에어코리아 지연 대비). 파일·DB에 저장하지 않는다.
+const AIR_CACHE = new Map();
+
 const FIXTURE_WEATHER = { tmax: 29, tmin: 19, pop: 20, wind: 2 };
 
 async function handler(req, res) {
@@ -93,12 +96,24 @@ async function handler(req, res) {
     meta.source = "직접 입력(시험용)";
   } else if (key && process.env.USE_FIXTURES !== "1") {
     try {
-      // 기상청과 에어코리아를 동시에 부른다(함수 실행 시간 단축). 에어코리아는 한 번 더 시도한다.
+      // 기상청과 에어코리아를 동시에 부른다. 에어코리아는 응답이 느릴 때가 있어 15초까지 기다린다.
+      // 실패하면(시간 초과 포함) 같은 지역·날짜로 최근 6시간 안에 성공한 값을 대신 쓰고 화면에 알린다.
       const airTask = (async () => {
+        const ck = `${region}|${dateStr}`;
         let last = null;
         for (let i = 0; i < 2; i++) {
-          try { return await fetchAir({ key, region, dateDash: dateStr, now }); }
-          catch (e) { last = e; }
+          try {
+            const a = await fetchAir({ key, region, dateDash: dateStr, now, timeoutMs: 15000 });
+            if (a.pmGrade) AIR_CACHE.set(ck, { air: a, at: Date.now() });
+            return a;
+          } catch (e) {
+            last = e;
+            if (e && e.name === "AbortError") break; // 시간 초과는 다시 시도해도 오래 걸리므로 바로 대체한다
+          }
+        }
+        const hit = AIR_CACHE.get(ck);
+        if (hit && Date.now() - hit.at < 6 * 3600 * 1000) {
+          return { ...hit.air, note: "에어코리아 호출이 지연되어 직전에 조회한 미세먼지 예보 값을 사용했습니다" };
         }
         const reason = last && last.name === "AbortError" ? "응답 시간 초과" : (last && last.message) || "알 수 없는 오류";
         return { pmGrade: null, note: `에어코리아 예보를 불러오지 못했습니다(${reason})` };
