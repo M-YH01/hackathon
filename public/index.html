@@ -150,6 +150,9 @@ var ul=$("reasons");ul.textContent="";
 j.reasons.forEach(function(t){var li=document.createElement("li");li.textContent=t;ul.appendChild(li)});
 var w=$("warns");w.textContent="";
 var notes=(j.meta.notes||[]).slice();
+var wx=j.weather||{};
+function nv(v,u){return v===null||v===undefined?"값 없음":v+u}
+notes.unshift("적용한 예보: 최고 "+nv(wx.tmax,"℃")+" · 최저 "+nv(wx.tmin,"℃")+" · 강수확률 "+nv(wx.pop,"%")+" · 풍속 "+nv(wx.wind,"m/s")+" · 초미세먼지 "+(wx.pmGrade||"값 없음"));
 if(j.meta.source==="공공데이터"){notes.push("기준: "+j.meta.kma+(j.meta.air?" / "+j.meta.air:""))}
 notes.forEach(function(t){var d=document.createElement("div");d.className=j.meta.source==="공공데이터"?"note":"warn";d.textContent=t;w.appendChild(d)});
 var box=$("msgs");box.textContent="";

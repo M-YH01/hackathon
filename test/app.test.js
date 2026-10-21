@@ -275,3 +275,17 @@ test("API: 범위 밖 날짜·지역·시각은 거절", async () => {
   assert.equal((await call(handler, { ...ok, hour: 25 })).status, 400);
   assert.equal((await call(handler, { ...ok, place: "해변" })).status, 400);
 });
+
+test("규칙 문장: 정중한 버전은 친구에게도 존댓말이고, 가벼운 버전은 반말이다", () => {
+  const ctx = { verdict: "미루기", relation: "친구", whenLabel: "10월 21일 15시", reasons: [], category: "업무·야근", alt: ai.altSuggestion("미루기", "친구") };
+  const [polite, light] = ai.templateMessages(ctx);
+  assert.match(polite.text, /어떨까요\?/);
+  assert.doesNotMatch(polite.text, /알려줘[.\s]|어때\?/);
+  assert.match(light.text, /알려줘/);
+});
+
+test("AI 프롬프트에는 분류 이름 문장이 사실로 들어가지 않는다", () => {
+  const p = ai.buildPrompt({ verdict: "미루기", score: 40, relation: "친구", whenLabel: "10월 21일 15시", place: "야외", category: "업무·야근", alt: "", reasons: ['개인 사정은 "업무·야근"으로 분류했고 점수 +40', "개인 사정이 주된 이유라 장소를 바꿔도 해결되지 않아 미루기로 봅니다"] });
+  assert.doesNotMatch(p, /\[사실\] 판결 이유:.*분류했고/);
+  assert.match(p, /존댓말/);
+});
