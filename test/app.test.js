@@ -21,9 +21,9 @@ test("미세먼지 매우 나쁨 야외는 강행이 아니다", () => {
   assert.notEqual(r.verdict, "강행");
 });
 
-test("호우 야외: 강수 90% + 풍속 10 = 45, 실내로 변경", () => {
+test("호우 야외: 강수 90% + 풍속 10 = 50, 실내로 변경", () => {
   const r = rules.decide({ ...base, weather: { ...calm, pop: 90, wind: 10 } });
-  assert.equal(r.score, 45);
+  assert.equal(r.score, 50);
   assert.equal(r.verdict, "실내로 변경");
 });
 
@@ -35,7 +35,7 @@ test("귀찮음만으로는 미루기가 나오지 않는다(상한 +5)", () => 
 
 test("폭염 + 가벼운 컨디션 + 호우는 미루기", () => {
   const r = rules.decide({ ...base, category: "가벼운 컨디션", weather: { ...calm, tmax: 36, pop: 90 } });
-  assert.equal(r.score, 30 + 35 + 15);
+  assert.equal(r.score, 30 + 40 + 15);
   assert.equal(r.verdict, "미루기");
 });
 
@@ -48,8 +48,8 @@ test("개인 사정은 10가지로 나뉘고 점수는 최대 +55", () => {
 
 test("날씨가 괜찮을 때 사정 점수만으로: 큰 사정은 미루기, 작은 사정은 강행", () => {
   const verdictOf = (category) => rules.decide({ ...base, category, weather: calm }).verdict;
-  for (const c of ["가족·응급", "심한 건강 문제", "시험·마감", "업무·야근"]) assert.equal(verdictOf(c), "미루기", c);
-  for (const c of ["약속 겹침", "이동 곤란", "가벼운 컨디션", "감정", "단순 귀찮음", "기타", "없음"]) assert.equal(verdictOf(c), "강행", c);
+  for (const c of ["가족·응급", "심한 건강 문제", "시험·마감", "업무·야근", "약속 겹침"]) assert.equal(verdictOf(c), "미루기", c);
+  for (const c of ["이동 곤란", "가벼운 컨디션", "감정", "단순 귀찮음", "기타", "없음"]) assert.equal(verdictOf(c), "강행", c);
 });
 
 test("사정이 주된 이유면 장소를 바꾸지 않고 미루기, 날씨가 주된 이유면 실내로 변경", () => {
@@ -61,22 +61,36 @@ test("사정이 주된 이유면 장소를 바꾸지 않고 미루기, 날씨가
   assert.equal(b.verdict, "실내로 변경");
 });
 
-test("중요한 약속이면 큰 사정도 -15 반영", () => {
-  const r = rules.decide({ ...base, importance: "중요", category: "업무·야근", weather: calm });
-  assert.equal(r.score, 25);
-  assert.equal(r.verdict, "강행");
+test("중요한 약속이어도 개인 사정 점수는 깎지 않는다", () => {
+  const r = rules.decide({ ...base, importance: "중요", category: "심한 건강 문제", weather: { ...calm, pop: 0 } });
+  assert.equal(r.score, 50);
+  assert.equal(r.verdict, "미루기");
+});
+
+test("단독 악천후: 강수확률 90%·풍속 20m/s는 강행이 아니다", () => {
+  assert.notEqual(rules.decide({ ...base, weather: { ...calm, pop: 90 } }).verdict, "강행");
+  const w = rules.decide({ ...base, weather: { ...calm, wind: 20 } });
+  assert.equal(w.score, 45);
+  assert.notEqual(w.verdict, "강행");
+});
+
+test("초미세먼지 나쁨은 +15", () => {
+  assert.equal(rules.decide({ ...base, weather: { ...calm, pmGrade: "나쁨" } }).score, 15);
 });
 
 test("실내 약속은 날씨 40%만 반영하고 '실내로 변경'이 나오지 않는다", () => {
   const r = rules.decide({ ...base, place: "실내", weather: { ...calm, tmax: 39, pop: 90 } });
-  assert.equal(r.parts.weather, Math.round((45 + 35) * 0.4));
+  assert.equal(r.parts.weather, Math.round((45 + 40) * 0.4));
   assert.notEqual(r.verdict, "실내로 변경");
 });
 
-test("중요한 약속은 -15", () => {
-  const r = rules.decide({ ...base, importance: "중요", weather: { ...calm, tmax: 39 } });
-  assert.equal(r.score, 30);
-  assert.equal(r.verdict, "강행");
+test("중요한 약속은 불편한 날씨만 최대 15점 낮추고 위험한 날씨는 낮추지 않는다", () => {
+  const mild = rules.decide({ ...base, importance: "중요", weather: { ...calm, pop: 60 } }); // 날씨 25 → 10
+  assert.equal(mild.score, 10);
+  assert.equal(mild.verdict, "강행");
+  const danger = rules.decide({ ...base, importance: "중요", weather: { ...calm, tmax: 39 } });
+  assert.equal(danger.score, 45);
+  assert.equal(danger.verdict, "실내로 변경");
 });
 
 test("값이 없으면 반영하지 못했다고 알린다", () => {
