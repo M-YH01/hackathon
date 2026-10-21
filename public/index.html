@@ -1,0 +1,167 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>약속 날씨 판결기</title>
+<style>
+:root{--bg:#f5f7fb;--card:#fff;--tx:#1b2433;--sub:#5d6b82;--line:#d9e0ec;--ac:#2f6df6;--go:#1f9d63;--mid:#b87000;--stop:#d5384a;--warn:#fff4d6;--warntx:#6b4a00}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){--bg:#10151f;--card:#18202e;--tx:#e8edf6;--sub:#9aa7bd;--line:#2a3548;--ac:#6b9bff;--go:#43c88a;--mid:#f0a93a;--stop:#ff6b7c;--warn:#3a3012;--warntx:#f2d98a}}
+:root[data-theme="dark"]{--bg:#10151f;--card:#18202e;--tx:#e8edf6;--sub:#9aa7bd;--line:#2a3548;--ac:#6b9bff;--go:#43c88a;--mid:#f0a93a;--stop:#ff6b7c;--warn:#3a3012;--warntx:#f2d98a}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--tx);font:15px/1.6 system-ui,-apple-system,"Noto Sans KR","Malgun Gothic",sans-serif}
+main{max-width:720px;margin:0 auto;padding:20px 16px 40px}
+h1{font-size:22px;margin:0 0 4px}h2{font-size:16px;margin:0 0 10px}
+.sub{color:var(--sub);font-size:13px;margin:0 0 16px}
+.card{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:16px;margin-bottom:14px}
+.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:10px}
+label{display:block;font-size:12px;color:var(--sub);margin-bottom:3px}
+input,select,textarea{width:100%;padding:8px;border:1px solid var(--line);border-radius:8px;background:var(--bg);color:var(--tx);font:inherit}
+button{font:inherit;border:0;border-radius:8px;padding:9px 14px;cursor:pointer;background:var(--ac);color:#fff}
+button:disabled{opacity:.6;cursor:wait}
+button.ghost{background:transparent;color:var(--ac);border:1px solid var(--ac);padding:5px 10px;font-size:13px}
+.presets{display:flex;flex-wrap:wrap;gap:6px;margin:8px 0 12px}
+.verdict{font-size:26px;font-weight:700;margin:2px 0}
+.bar{height:10px;border-radius:5px;background:var(--line);overflow:hidden;margin:8px 0}
+.bar i{display:block;height:100%;transition:width .3s}
+ul{margin:6px 0 0;padding-left:18px}
+.msg{border:1px solid var(--line);border-radius:8px;padding:10px;margin-top:8px}
+.msg b{font-size:13px}.msg p{margin:4px 0 8px;white-space:pre-wrap}
+.note{font-size:12px;color:var(--sub)}
+.badge{display:inline-block;font-size:12px;border:1px solid var(--line);border-radius:999px;padding:1px 8px;margin:0 6px 4px 0}
+.warn{background:var(--warn);color:var(--warntx);border-radius:8px;padding:8px 10px;font-size:13px;margin:8px 0}
+.err{color:var(--stop);font-size:14px;margin-top:8px}
+.hide{display:none}
+details summary{cursor:pointer;color:var(--ac);font-size:13px}
+.row{display:flex;gap:8px;align-items:center;margin-top:10px}
+.row input[type=checkbox]{width:auto}
+</style>
+</head>
+<body>
+<main>
+<h1>오늘 약속, 가도 될까?</h1>
+<p class="sub">약속 날씨 판결기 · 기상청 예보와 에어코리아 미세먼지 예보, 내 사정으로 강행 / 실내로 변경 / 미루기를 판단하고 보낼 말까지 만들어 줍니다.</p>
+
+<form id="f" class="card">
+  <h2>1. 약속 입력</h2>
+  <div class="grid">
+    <div><label for="region">지역</label><select id="region"></select></div>
+    <div><label for="date">날짜 (오늘~글피)</label><select id="date"></select></div>
+    <div><label for="hour">시각</label><select id="hour"></select></div>
+    <div><label for="place">약속 성격</label><select id="place"><option>야외</option><option>실내</option></select></div>
+    <div><label for="importance">중요도</label><select id="importance"><option>가벼움</option><option selected>보통</option><option>중요</option></select></div>
+    <div><label for="relation">상대와의 관계</label><select id="relation"><option>친구</option><option>동료</option><option>상사</option></select></div>
+  </div>
+  <div style="margin-top:10px">
+    <label for="reason">개인 사정 한 줄 (선택 · 저장되지 않음 · 건강 정보는 적지 마세요)</label>
+    <input id="reason" maxlength="100" placeholder="예: 오늘 나가기 너무 귀찮아">
+  </div>
+  <div class="row"><input type="checkbox" id="useManual"><label for="useManual" style="margin:0">예보 대신 값을 직접 입력 (시험·시연용)</label></div>
+  <div id="manual" class="hide" style="margin-top:10px">
+    <div class="presets" id="presets" aria-label="대표 입력"></div>
+    <div class="grid">
+      <div><label for="tmax">최고기온(℃)</label><input id="tmax" type="number" value="24"></div>
+      <div><label for="tmin">최저기온(℃)</label><input id="tmin" type="number" value="14"></div>
+      <div><label for="pop">강수확률(%)</label><input id="pop" type="number" value="20"></div>
+      <div><label for="wind">풍속(m/s)</label><input id="wind" type="number" value="2"></div>
+      <div><label for="pmGrade">초미세먼지 예보</label><select id="pmGrade"><option>좋음</option><option selected>보통</option><option>나쁨</option><option>매우나쁨</option></select></div>
+    </div>
+  </div>
+  <div style="margin-top:12px"><button id="go" type="submit">판결 받기</button></div>
+  <div id="err" class="err hide" role="alert"></div>
+</form>
+
+<div id="out" class="card hide" aria-live="polite">
+  <h2>2. 판결</h2>
+  <div id="badges"></div>
+  <div class="verdict" id="v"></div>
+  <div class="bar"><i id="barfill"></i></div>
+  <div id="score" class="note"></div>
+  <ul id="reasons"></ul>
+  <div id="warns"></div>
+  <p id="care" class="hide"></p>
+  <div id="msgBox">
+    <h2 style="margin-top:16px">3. 보낼 메시지</h2>
+    <div id="msgs"></div>
+  </div>
+</div>
+
+<p class="note">조정 필요도는 규칙이 계산한 0~100 점수이며, AI는 점수를 바꾸지 않고 개인 사정 분류와 메시지 작성만 맡습니다. 판결은 참고용이며 예보는 바뀔 수 있으니 당일 다시 확인하세요.<br>
+데이터 출처: 기상청 단기예보(공공데이터포털), 한국환경공단 에어코리아 대기오염정보(공공데이터포털). 개인 사정 한 줄은 저장하지 않지만, 무료 AI 모델을 쓰면 입력이 서비스 개선에 쓰일 수 있어 건강 정보는 적지 마세요.</p>
+</main>
+<script>
+(function(){
+var $=function(i){return document.getElementById(i)};
+var REGIONS=["서울","부산","대구","인천","광주","대전","울산","세종","제주"];
+REGIONS.forEach(function(r){var o=document.createElement("option");o.textContent=r;$("region").appendChild(o)});
+for(var h=0;h<24;h++){var o=document.createElement("option");o.value=h;o.textContent=h+"시";if(h===15)o.selected=true;$("hour").appendChild(o)}
+var fmt=new Intl.DateTimeFormat("sv-SE",{timeZone:"Asia/Seoul"});
+var names=["오늘","내일","모레","글피"];
+for(var d=0;d<4;d++){var dt=new Date(Date.now()+d*86400000);var o2=document.createElement("option");
+o2.value=fmt.format(dt);o2.textContent=names[d]+" ("+o2.value.slice(5)+")";$("date").appendChild(o2)}
+
+var PRESETS=[
+["맑은 날 카페",{place:"실내",importance:"보통",relation:"친구",tmax:24,tmin:14,pop:10,wind:2,pmGrade:"좋음",reason:""}],
+["폭염 야외",{place:"야외",importance:"보통",relation:"친구",tmax:39,tmin:27,pop:0,wind:2,pmGrade:"보통",reason:""}],
+["호우 야외",{place:"야외",importance:"가벼움",relation:"동료",tmax:22,tmin:18,pop:90,wind:10,pmGrade:"좋음",reason:""}],
+["미세먼지 매우 나쁨",{place:"야외",importance:"보통",relation:"친구",tmax:18,tmin:8,pop:0,wind:1,pmGrade:"매우나쁨",reason:""}],
+["귀찮음만 있음",{place:"야외",importance:"가벼움",relation:"친구",tmax:22,tmin:13,pop:10,wind:2,pmGrade:"좋음",reason:"오늘 나가기 너무 귀찮아"}],
+["업무 충돌",{place:"야외",importance:"보통",relation:"동료",tmax:26,tmin:16,pop:20,wind:3,pmGrade:"보통",reason:"갑자기 야근이 생겼어"}],
+["폭염+호우+몸살",{place:"야외",importance:"보통",relation:"상사",tmax:36,tmin:26,pop:90,wind:3,pmGrade:"보통",reason:"몸살 기운이 있어"}]
+];
+PRESETS.forEach(function(p){var b=document.createElement("button");b.type="button";b.className="ghost";b.textContent=p[0];
+b.onclick=function(){for(var k in p[1]){$(k).value=p[1][k]}$("f").requestSubmit()};$("presets").appendChild(b)});
+$("useManual").onchange=function(){$("manual").classList.toggle("hide",!this.checked)};
+
+function badge(t){var s=document.createElement("span");s.className="badge";s.textContent=t;return s}
+function show(el,on){el.classList.toggle("hide",!on)}
+
+$("f").onsubmit=function(e){
+e.preventDefault();
+var btn=$("go");btn.disabled=true;btn.textContent="판결 중...";show($("err"),false);
+var body={region:$("region").value,date:$("date").value,hour:+$("hour").value,place:$("place").value,
+importance:$("importance").value,relation:$("relation").value,reason:$("reason").value};
+if($("useManual").checked){body.manual={tmax:$("tmax").value,tmin:$("tmin").value,pop:$("pop").value,wind:$("wind").value,pmGrade:$("pmGrade").value}}
+fetch("/api/verdict",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(body)})
+.then(function(r){return r.json().then(function(j){return {ok:r.ok,j:j}})})
+.then(function(x){
+ if(!x.ok){$("err").textContent=x.j.error||"요청에 실패했습니다";show($("err"),true);return}
+ render(x.j)})
+.catch(function(){$("err").textContent="서버에 연결하지 못했습니다";show($("err"),true)})
+.finally(function(){btn.disabled=false;btn.textContent="판결 받기"})};
+
+function render(j){
+show($("out"),true);
+var care=$("care");
+if(j.care){care.textContent=j.care;show(care,true);["badges","reasons","warns","msgs","score","v"].forEach(function(i){$(i).textContent=""});
+ $("barfill").style.width="0";show($("msgBox"),false);return}
+show(care,false);show($("msgBox"),true);
+var col=j.verdict==="강행"?"var(--go)":j.verdict==="미루기"?"var(--stop)":"var(--mid)";
+$("v").textContent=j.verdict;$("v").style.color=col;
+$("barfill").style.width=j.score+"%";$("barfill").style.background=col;
+var p=j.parts;
+$("score").textContent="조정 필요도 "+j.score+" / 100 (날씨·대기질 "+p.weather+" + 사정 "+p.reason+(p.importance?" "+p.importance+" 중요도":"")+")";
+var b=$("badges");b.textContent="";
+b.appendChild(badge("데이터: "+j.meta.source));
+b.appendChild(badge(j.meta.region+" · "+j.meta.whenLabel));
+b.appendChild(badge("사정 분류: "+(j.meta.classifiedBy==="ai"?"AI":"규칙")));
+b.appendChild(badge("메시지: "+(j.meta.messagesBy==="ai"?"AI ("+j.meta.model+")":"규칙 문장")));
+var ul=$("reasons");ul.textContent="";
+j.reasons.forEach(function(t){var li=document.createElement("li");li.textContent=t;ul.appendChild(li)});
+var w=$("warns");w.textContent="";
+var notes=(j.meta.notes||[]).slice();
+if(j.meta.source==="공공데이터"){notes.push("기준: "+j.meta.kma+(j.meta.air?" / "+j.meta.air:""))}
+notes.forEach(function(t){var d=document.createElement("div");d.className=j.meta.source==="공공데이터"?"note":"warn";d.textContent=t;w.appendChild(d)});
+var box=$("msgs");box.textContent="";
+j.messages.forEach(function(m){
+ var d=document.createElement("div");d.className="msg";
+ var bb=document.createElement("b");bb.textContent=m.label;
+ var pp=document.createElement("p");pp.textContent=m.text;
+ var bt=document.createElement("button");bt.type="button";bt.className="ghost";bt.textContent="복사";
+ bt.onclick=function(){try{navigator.clipboard.writeText(m.text);bt.textContent="복사됨"}catch(e){bt.textContent="길게 눌러 복사"}};
+ d.appendChild(bb);d.appendChild(pp);d.appendChild(bt);box.appendChild(d)});
+}
+})();
+</script>
+</body>
+</html>

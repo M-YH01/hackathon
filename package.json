@@ -1,0 +1,12 @@
+{
+  "name": "appointment-weather-judge",
+  "version": "1.0.0",
+  "private": true,
+  "description": "약속 날씨 판결기: 기상청 단기예보·에어코리아 예보와 개인 사정으로 약속 판결을 내리는 해커톤 시연 서비스",
+  "scripts": {
+    "start": "node --env-file=.env server.js",
+    "start:demo": "node server.js",
+    "test": "node --test"
+  },
+  "engines": { "node": ">=20.6" }
+}
